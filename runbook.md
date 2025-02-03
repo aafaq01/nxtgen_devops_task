@@ -1,10 +1,10 @@
-Certainly! Below is the updated `runbook.md` with Traefik installed using the **default configuration on port 80**. This ensures that Traefik listens on port `80` as expected, and the application is accessed via the standard HTTP port.
+Certainly! Below is the updated `runbook.md` file that focuses on administering and maintaining the "Hello, World!" web server with **Prometheus metrics and alerting**, but **without SSL or HTTPS security**. This runbook covers scaling, logging, monitoring, alerting, and troubleshooting.
 
 ---
 
 # Runbook: "Hello, World!" Web Server
 
-This runbook provides guidance for administering and maintaining the "Hello, World!" web server deployed on Kubernetes using Helm, Traefik (on port `80`), and Minikube. It covers common operational tasks such as scaling, logging, monitoring, and troubleshooting.
+This runbook provides guidance for administering and maintaining the "Hello, World!" web server deployed on Kubernetes using Helm, Traefik (on port `80`), and Minikube. It includes **Prometheus metrics and alerting** for monitoring and troubleshooting.
 
 ---
 
@@ -13,13 +13,14 @@ This runbook provides guidance for administering and maintaining the "Hello, Wor
 2. [Prerequisites](#prerequisites)
 3. [Scaling the Application](#scaling-the-application)
 4. [Logging](#logging)
-5. [Monitoring](#monitoring)
-6. [Troubleshooting](#troubleshooting)
-7. [Common Tasks](#common-tasks)
+5. [Monitoring with Prometheus](#monitoring-with-prometheus)
+6. [Alerting with Alertmanager](#alerting-with-alertmanager)
+7. [Troubleshooting](#troubleshooting)
+8. [Common Tasks](#common-tasks)
    - [Restarting the Application](#restarting-the-application)
    - [Updating the Application](#updating-the-application)
    - [Accessing the Application](#accessing-the-application)
-8. [Backup and Recovery](#backup-and-recovery)
+9. [Backup and Recovery](#backup-and-recovery)
 
 ---
 
@@ -31,6 +32,7 @@ The "Hello, World!" web server is a simple FastAPI application that returns `{"m
 - **Ingress Host**: `hello-world.local`
 - **Helm Chart**: `hello-world-chart`
 - **Traefik Port**: `80` (default)
+- **Prometheus Metrics**: Exposed via `/metrics` endpoint.
 
 ---
 
@@ -90,25 +92,37 @@ Application logs can be accessed using `kubectl logs`.
 
 ---
 
-## Monitoring
-To monitor the application and cluster, consider setting up Prometheus and Grafana. For now, you can use the following commands to monitor resource usage:
+## Monitoring with Prometheus
+Prometheus is used to monitor the application and cluster. Metrics are exposed by the FastAPI application via the `/metrics` endpoint.
 
-1. View pod resource usage:
+1. Access the Prometheus UI:
    ```bash
-   kubectl top pods
+   kubectl port-forward svc/prometheus-operated 9090:9090 -n monitoring
    ```
+   Open `http://localhost:9090` in your browser.
 
-2. View node resource usage:
-   ```bash
-   kubectl top nodes
-   ```
+2. Query metrics:
+   - Request latency: `histogram_quantile(0.99, rate(http_request_duration_seconds_bucket{app="hello-world"}[5m]))`
+   - Error rate: `rate(http_requests_total{app="hello-world", status=~"5.."}[5m])`
+   - CPU usage: `rate(container_cpu_usage_seconds_total{container="hello-world"}[5m])`
+   - Memory usage: `container_memory_usage_bytes{container="hello-world"}`
 
-3. Check Traefik metrics (if enabled):
-   Access the Traefik dashboard:
+---
+
+## Alerting with Alertmanager
+Alertmanager is used to send alerts based on Prometheus metrics. Alerts are configured for the **Four Golden Signals**:
+- **Latency**: Request duration.
+- **Traffic**: Request rate.
+- **Errors**: Error rate.
+- **Saturation**: Resource usage.
+
+1. Access the Alertmanager UI:
    ```bash
-   kubectl port-forward svc/traefik 9000:9000
+   kubectl port-forward svc/prometheus-kube-prometheus-alertmanager 9093:9093 -n monitoring
    ```
-   Open `http://localhost:9000/dashboard/` in your browser.
+   Open `http://localhost:9093` in your browser.
+
+2. View and silence alerts as needed.
 
 ---
 
@@ -218,30 +232,30 @@ kubectl delete pod <pod-name>
 
 ---
 
-## Traefik Installation (Default on Port 80)
-Traefik is installed using Helm with the default configuration, which listens on port `80`. To install Traefik:
+## Prometheus Installation
+Prometheus is installed using the `kube-prometheus-stack` Helm chart in the `monitoring` namespace.
 
-1. Add the Traefik Helm repository:
+1. Add the Prometheus Helm repository:
    ```bash
-   helm repo add traefik https://helm.traefik.io/traefik
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
    helm repo update
    ```
 
-2. Install Traefik:
+2. Install the `kube-prometheus-stack`:
    ```bash
-   helm install traefik traefik/traefik
+   helm install prometheus prometheus-community/kube-prometheus-stack --namespace monitoring
    ```
 
-3. Verify Traefik installation:
+3. Verify the installation:
    ```bash
-   kubectl get pods -l app.kubernetes.io/name=traefik
-   kubectl get svc -l app.kubernetes.io/name=traefik
+   kubectl get pods -n monitoring
+   kubectl get svc -n monitoring
    ```
 
 ---
 
 ## Conclusion
-This runbook provides a comprehensive guide for administering and maintaining the "Hello, World!" web server with Traefik installed on the default port `80`. For further enhancements, consider integrating Prometheus for advanced monitoring and Alertmanager for proactive alerting.
+This runbook provides a comprehensive guide for administering and maintaining the "Hello, World!" web server with **Prometheus metrics and alerting**. For further enhancements, consider integrating Grafana for advanced visualization and dashboards.
 
 ---
 
